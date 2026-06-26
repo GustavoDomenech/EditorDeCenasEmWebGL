@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor de Cenas</title>
+    <link rel="stylesheet" href="style.css"> 
+</head>
+<body>
+    <div id="menu-edicao" class="painel laterais"> 
+        <h3>Menu</h3>
+        <p>Modelo selecionado: <span id="nomeselecionado">Nenhum</span></p>
+
+        <div class="controles">
+            <h4>Transformações</h4>
+        </div>
+    </div>
+
+    <div id="cena">
+        <canvas id="canvas-webgl"></canvas>
+    </div>
+
+    <div id="menu-modelos" class="painel laterais">
+        <h3>Seleção de Modelos</h3>
+        <div id="lista-modelos" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; overflow-y: auto;">
+        </div>
+    </div>
+
+    <script src="matriz.js"></script>
+    <script src="parser.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

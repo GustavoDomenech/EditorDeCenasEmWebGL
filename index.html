@@ -7,13 +7,45 @@
     <link rel="stylesheet" href="style.css"> 
 </head>
 <body>
-    <div id="menu-edicao" class="painel laterais"> 
+    <div id="menu-edicao" class="painel laterais" style="overflow-y: auto; max-height: 100vh;"> 
         <h3>Menu</h3>
-        <p>Modelo selecionado: <span id="nomeselecionado">Nenhum</span></p>
+        <p>Modelo selecionado: <br><strong id="nome-selecionado">Nenhum</strong></p>
 
-        <div class="controles">
+        <div id ="painel-transformacoes" style="display: none; margin-top: 15px;">
             <h4>Transformações</h4>
+
+            <label>Cor do modelo: </label>
+            <input type="color" id="cor-modelo" style="width: 100%; cursor:pointe; height: 30px; margin-bottom: 15px;">
+
+            <label>Posição X: <span id="val-pos-x" style="color: #4CAF50;">0</span></label>
+            <input type="range" id="pos-x" min="-10" max="10" step="0.1" style="width: 100%; cursor: pointer;"><br>
+
+            <label>Posição Y: <span id="val-pos-y" style="color: #4CAF50;">0</span></label>
+            <input type="range" id="pos-y" min="-10" max="10" step="0.1" style="width: 100%; cursor: pointer;"><br>
+
+            <label>Posição Z: <span id="val-pos-z" style="color: #4CAF50;">0</span></label>
+            <input type="range" id="pos-z" min="-15" max="5" step="0.1" style="width: 100%; cursor: pointer;"><br><br>
+
+            <label>Rotação X: <span id="val-rot-x" style="color: #4CAF50;">0</span>°</label>
+            <input type="range" id="rot-x" min="0" max="360" step="1" style="width: 100%; cursor: pointer;"><br>
+            <label>Rotação Y: <span id="val-rot-y" style="color: #4CAF50;">0</span>°</label>
+            <input type="range" id="rot-y" min="0" max="360" step="1" style="width: 100%; cursor: pointer;"><br>
+            <label>Rotação Z: <span id="val-rot-z" style="color: #4CAF50;">0</span>°</label>
+            <input type="range" id="rot-z" min="0" max="360" step="1" style="width: 100%; cursor: pointer;"><br><br>
+
+            <label>Escala X: <span id="val-esc-x" style="color: #4CAF50;">1</span></label>
+            <input type="range" id="esc-x" min="0.1" max="3" step="0.1" style="width: 100%; cursor: pointer;"><br>
+
+            <label>Escala Y: <span id="val-esc-y" style="color: #4CAF50;">1</span></label>
+            <input type="range" id="esc-y" min="0.1" max="3" step="0.1" style="width: 100%; cursor: pointer;"><br>
+
+            <label>Escala Z: <span id="val-esc-z" style="color: #4CAF50;">1</span></label>
+            <input type="range" id="esc-z" min="0.1" max="3" step="0.1" style="width: 100%; cursor: pointer;"> 
         </div>
+
+        <h4 style="margin-top: 25px;">Objetos na Cena</h4>
+        <ul id="lista-cena" style="list-style-type: none; padding: 0; margin-top: 10px;">    
+        </ul>
     </div>
 
     <div id="cena">

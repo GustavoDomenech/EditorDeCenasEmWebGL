@@ -2,9 +2,11 @@ let gl;
 let canvas;
 let programaGlobal;
 let u_matrizLoc;
-
+let u_corLoc;
+let indiceSelecionado = -1 //guarda o objeto sendo editado
 const bibliotecaModelos = {}; //guarda a vram
 const cena = []; //guarda os objetos na tela
+
 
 const vertexShaderSource = `#version 300 es
     //atributo que vai receber as coordenadas do vertice do .obj
@@ -26,11 +28,13 @@ const fragmentShaderSource = `#version 300 es
     precision highp float; //define a precisao dos floats
 
     in vec3 v_normal;
+    uniform vec3 u_cor; //cor a ser enviada
     out vec4 corSaida; //saida de cor do fragmento (pixel)
 
     void main(){
-        vec3 corNormal = v_normal * 0.5 + 0.5; //ajusta a normal pra virar rgb válido
-        corSaida = vec4(corNormal, 1.0);
+        vec3 luzDirecao = normalize(vec3(1.0, 1.5, 0.5)); //fonte de luz vindo da diagonal superior
+        float luz = max(dot(normalize(v_normal), luzDirecao), 0.3); //calcula se a luz bate de frente com o triangulo, 0.3 = claridade minima
+        corSaida = vec4(u_cor * luz, 1.0); //pinta o pixel com a cor escolhida iluminada
     }
 `;
 
@@ -81,7 +85,11 @@ function gerarIconeBase64(modeloBib){
   const projecao = Matriz.perspectiva((60 * Math.PI) / 180, 1.0, 0.1, 100.0);
   const matEscala = Matriz.escala(0.4, 0.4, 0.4);
   let matRot = Matriz.multiplicar(Matriz.rotacaoX(Math.PI / 6), Matriz.rotacaoY(-Math.PI / 4));
-  let matPos = Matriz.translacao(0.015, -0.015, -0.4)
+
+  let dx = modeloBib.configIcone.x;
+  let dy = modeloBib.configIcone.y;
+  let dz = modeloBib.configIcone.z;
+  let matPos = Matriz.translacao(dx, dy, dz);
 
   let matModelo = Matriz.multiplicar(matRot, matEscala);
   matModelo = Matriz.multiplicar(matPos, matModelo);
@@ -89,6 +97,7 @@ function gerarIconeBase64(modeloBib){
   let matrizFinal = Matriz.multiplicar(projecao, matModelo);
 
   gl.uniformMatrix4fv(u_matrizLoc, false, matrizFinal);
+  gl.uniform3fv(u_corLoc, [0.8, 0.8, 0.8]);
 
   gl.bindVertexArray(modeloBib.vao);
   gl.drawArrays(gl.TRIANGLES, 0, modeloBib.contagemVertices);
@@ -102,6 +111,101 @@ function gerarIconeBase64(modeloBib){
   gl.clearColor(0.15, 0.15, 0.15, 1.0);
 
   return dataUrl;
+}
+
+function atualizarListaCena(){ //atualiza a lista de objetos no menu da esquerda
+  const lista = document.getElementById('lista-cena');
+  if (!lista) return;
+  lista.innerHTML = ''; //limpa a lista
+
+  for (let i = 0; i < cena.length; i++){
+    const item = document.createElement('li');
+    item.innerText = `${cena[i].nomeOBJ} ${i + 1}`;
+    item.style.padding = "8px";
+    item.style.cursor = "pointer";
+    item.style.borderBottom = "1px solid #444"
+
+    if (i === indiceSelecionado){
+      item.style.backgroundColor = "#4CAF50"; //pinta de verde se for o objeto selecionado
+      item.style.color = "white";
+    }
+
+    item.onclick = () => selecionarObjeto(i);
+    lista.appendChild(item);
+  }
+}
+
+function selecionarObjeto(indice){
+  indiceSelecionado = indice;
+  atualizarListaCena(); //atualiza as cores da lista
+
+  const obj = cena[indice];
+  document.getElementById('nome-selecionado').innerText = `${obj.nomeOBJ} ${indice + 1}`;
+  document.getElementById('painel-transformacoes').style.display = 'block'; //mostra os inputs
+
+  function setValor(id, valor){ //função auxiliar pra atualizar o slider e o numero ao mesmo tempo
+    document.getElementById(id).value = valor;
+    document.getElementById(`val-${id}`).innerText = valor.toFixed(1)
+  }
+
+  setValor('pos-x', obj.posicao[0]);
+  setValor('pos-y', obj.posicao[1]);
+  setValor('pos-z', obj.posicao[2]);
+  setValor('rot-x', obj.rotacao[0]);
+  setValor('rot-y', obj.rotacao[1]);
+  setValor('rot-z', obj.rotacao[2]);
+  setValor('esc-x', obj.escala[0]);
+  setValor('esc-y', obj.escala[1]);
+  setValor('esc-z', obj.escala[2]);
+
+  const rHex = Math.round(obj.cor[0] * 225).toString(16).padStart(2, '0');
+  const gHex = Math.round(obj.cor[1] * 225).toString(16).padStart(2, '0');
+  const bHex = Math.round(obj.cor[2] * 225).toString(16).padStart(2, '0');
+  document.getElementById('cor-modelo').value = `#${rHex}${gHex}${bHex}`;
+}
+
+function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em tempo real
+  const ids = ['pos-x', 'pos-y', 'pos-z', 'rot-x', 'rot-y','rot-z', 'esc-x', 'esc-y', 'esc-z'];
+
+  ids.forEach(id => {
+    const input = document.getElementById(id);
+    if (!input) return;
+
+    input.addEventListener('input', (e) => {
+      if (indiceSelecionado === -1) return;
+      const obj = cena[indiceSelecionado];
+      const valor = parseFloat(e.target.value) || 0;
+
+      document.getElementById(`val-${id}`).innerText = valor.toFixed(1); //atualiza o texto verde do lado do nome do slider
+
+      if (id === 'pos-x') obj.posicao[0] = valor; //salva em graus
+      if (id === 'pos-y') obj.posicao[1] = valor;
+      if (id === 'pos-z') obj.posicao[2] = valor;
+
+      if (id === 'rot-x') obj.rotacao[0] = valor;
+      if (id === 'rot-y') obj.rotacao[1] = valor;
+      if (id === 'rot-z') obj.rotacao[2] = valor;
+
+      if (id === 'esc-x') obj.escala[0] = valor;
+      if (id === 'esc-y') obj.escala[1] = valor;
+      if (id === 'esc-z') obj.escala[2] = valor;
+    });
+  });
+  
+  const inputCor = document.getElementById('cor-modelo'); //fica ouvindo pra mudar a cor, traduz pra webgl
+  if (!inputCor) return;
+
+  inputCor.addEventListener('input', (e) => {
+    if (indiceSelecionado === -1) return;
+    const hex = e.target.value; //formato rrggbb
+
+    //converte o hexadecimal pra rgb
+    const r = parseInt(hex.substring(1, 3), 16) / 255;
+    const g = parseInt(hex.substring(3, 5), 16) / 255;
+    const b = parseInt(hex.substring(5, 7), 16) / 255;
+
+    cena[indiceSelecionado].cor = [r, g, b]; //guarda na memoria do carro
+  });
 }
 
 function criarItemMenu(idUnico, nomeOBJ){
@@ -132,10 +236,14 @@ function criarItemMenu(idUnico, nomeOBJ){
   divItem.onclick = () => {
     cena.push({
       modeloId: idUnico,
+      nomeOBJ: nomeOBJ, //nome pra mostrar na lista
+      cor: [0.8, 0.8, 0.8],
       posicao: [(Math.random() - 0.5) * 4, -0.2, (Math.random() - 0.5) * -4 - 1],
-      rotacao: [0, 0, 0],
+      rotacao: [0, 0, 0], //em graus, 0 a 360
       escala: [1, 1, 1]
     });
+
+    atualizarListaCena();
   };
 
   //cria a imagem 3D fotografada
@@ -143,13 +251,13 @@ function criarItemMenu(idUnico, nomeOBJ){
   img.src = IconeBase64;
   img.style.width = "80px";
   img.style.height = "80px";
-  img.style.pointerEvents = "none;"
+  img.style.pointerEvents = "none";
   
   //cria o texto descritivo
   const p = document.createElement('p');
   p.innerText = nomeOBJ;
   p.style.fontSize = "10px";
-  img.style.pointerEvents = "none;"
+  p.style.pointerEvents = "none";
 
   divItem.appendChild(img);
   divItem.appendChild(p);
@@ -157,7 +265,7 @@ function criarItemMenu(idUnico, nomeOBJ){
 
 };
 
-async function carregarModeloOBJ(idUnico ,nomeArquivo, nomeOBJ) {
+async function carregarModeloOBJ(idUnico ,nomeArquivo, nomeOBJ, configIcone = {x: 0.015, y: -0.015, z: -0.4}) {
   try { 
     const resposta = await fetch(nomeArquivo);
     if (!resposta.ok) throw new Error(`Erro HTTP ${resposta.status}`);
@@ -189,7 +297,8 @@ async function carregarModeloOBJ(idUnico ,nomeArquivo, nomeOBJ) {
 
     bibliotecaModelos[idUnico] = {
       vao: novoVao,
-      contagemVertices: dadosModelo.contagemVertices
+      contagemVertices: dadosModelo.contagemVertices,
+      configIcone: configIcone
     };
 
     criarItemMenu(idUnico, nomeOBJ); //gera e adiciona botão no menu da direita
@@ -215,6 +324,7 @@ function inicializarWebGL() {
 
   programaGlobal = criarPrograma(gl, vertexShader, fragmentShader);
   u_matrizLoc = gl.getUniformLocation(programaGlobal, "u_matriz");
+  u_corLoc = gl.getUniformLocation(programaGlobal, "u_cor");
 
   redimensionarCanvas(); //tamanho inicial
   window.addEventListener("resize", redimensionarCanvas); //arrumar canvas quando a janela muda de tamanho
@@ -222,7 +332,11 @@ function inicializarWebGL() {
   gl.clearColor(0.15, 0.15, 0.15, 1.0); //cinza escuro
   gl.enable(gl.DEPTH_TEST); //teste de profundidade, z-buffer
 
-  carregarModeloOBJ('carro', 'car_hatchback.obj', 'Hatchback do Carro');
+  configurarInputs(); //liga os eventos da caixa de texto html
+
+  carregarModeloOBJ('carro', 'objetos/car_hatchback.obj', 'Chassi do Carro', {x: 0.015, y: -0.015, z: -0.4});
+  carregarModeloOBJ('banco', 'objetos/bench.obj', 'Banco', {x: -0.015, y: -0.015, z: -0.2});
+  carregarModeloOBJ('pneu' , 'objetos/car_hatchback_wheel_front_left.obj', 'Pneu', {x: 0.019, y: 0.053, z: -0.24})
 
   requestAnimationFrame(renderizar); //inicia o loop da aplicação
 }
@@ -247,7 +361,7 @@ function renderizar() {
   //configura a projeção (lente da camera)
   const aspect = canvas.width / canvas.height
   const projecao = Matriz.perspectiva((60 * Math.PI) / 180, aspect, 0.1, 100.0);  //campo de visão de 60 graus, baseado na tela do canvas
-  let visualizacao = Matriz.translacao(0, -2.0, -4.0);   //configura a visualização (posição da camera)
+  let visualizacao = Matriz.translacao(0, -2.0, -4.0);   //configura a visualização (posição da camera da cena principal)
   visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoX(Math.PI / 6));  //gira o mundo em 30 graus (cima)
   visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoY(-Math.PI / 4)); //gira o mundo em 45 graus (diagonal)
 
@@ -260,7 +374,17 @@ function renderizar() {
 
     //calcula a matriz baseada nas propriedades desta instancia especifica
     const matEscala = Matriz.escala(instancia.escala[0], instancia.escala[1], instancia.escala[2]);
-    const matRot = Matriz.rotacaoY(instancia.rotacao[1]);
+    
+    const anguloX = instancia.rotacao[0] * (Math.PI / 180); //converte a rotação da interface pra radianos
+    const anguloY = instancia.rotacao[1] * (Math.PI / 180);
+    const anguloZ = instancia.rotacao[2] * (Math.PI / 180);
+    const matRotX = Matriz.rotacaoX(anguloX);
+    const matRotY = Matriz.rotacaoY(anguloY);
+    const matRotZ = Matriz.rotacaoZ(anguloZ);
+
+    let matRot = Matriz.multiplicar(matRotX, matRotY);
+    matRot = Matriz.multiplicar(matRot, matRotZ)
+    
     const matPos = Matriz.translacao(instancia.posicao[0], instancia.posicao[1], instancia.posicao[2]);
 
     let matModelo = Matriz.multiplicar(matRot, matEscala);
@@ -270,6 +394,7 @@ function renderizar() {
     matrizFinal = Matriz.multiplicar(projecao, matrizFinal);
 
     gl.uniformMatrix4fv(u_matrizLoc, false, matrizFinal); //envia a matriz pra GPU
+    gl.uniform3fv(u_corLoc, instancia.cor); //envia a cor escolhida pra gpu
 
     //pega o endereço de memoria vao na biblioteca e desenha
     gl.bindVertexArray(modeloBib.vao);

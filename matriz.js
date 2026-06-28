@@ -62,6 +62,17 @@ const Matriz = {
         ]);
     },
 
+    rotacaoZ: function(radianos) {
+        let c = Math.cos(radianos);
+        let s = Math.sin(radianos);
+        return new Float32Array([
+            c,  s, 0, 0,
+           -s,  c, 0, 0,
+            0,  0, 1, 0,
+            0,  0, 0, 1
+        ]);
+    },
+
     escala: function(sx, sy, sz){
         return new Float32Array([
             sx, 0, 0, 0,

@@ -143,9 +143,22 @@ function selecionarObjeto(indice){
   document.getElementById('nome-selecionado').innerText = `${obj.nomeOBJ} ${indice + 1}`;
   document.getElementById('painel-transformacoes').style.display = 'block'; //mostra os inputs
 
+  const selectPai = document.getElementById('sel-pai');
+  selectPai.innerHTML = '<option value="-1">Nenhum (Mundo)</option>'; //reseta
+  for (let i = 0; i < cena.length; i++){
+    if (i !== indice) { //não mostra o objeto na lista
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.innerText = `${cena[i].nomeOBJ} ${i + 1}`;
+      selectPai.appendChild(opt);
+    }
+  }
+
+  selectPai.value = obj.pai; //seleciona o pai atual do objeto
+
   function setValor(id, valor){ //função auxiliar pra atualizar o slider e o numero ao mesmo tempo
     document.getElementById(id).value = valor;
-    document.getElementById(`val-${id}`).innerText = valor.toFixed(1)
+    document.getElementById(`val-${id}`).innerText = valor.toFixed(2)
   }
 
   setValor('pos-x', obj.posicao[0]);
@@ -158,9 +171,9 @@ function selecionarObjeto(indice){
   setValor('esc-y', obj.escala[1]);
   setValor('esc-z', obj.escala[2]);
 
-  const rHex = Math.round(obj.cor[0] * 225).toString(16).padStart(2, '0');
-  const gHex = Math.round(obj.cor[1] * 225).toString(16).padStart(2, '0');
-  const bHex = Math.round(obj.cor[2] * 225).toString(16).padStart(2, '0');
+  const rHex = Math.round(obj.cor[0] * 255).toString(16).padStart(2, '0');
+  const gHex = Math.round(obj.cor[1] * 255).toString(16).padStart(2, '0');
+  const bHex = Math.round(obj.cor[2] * 255).toString(16).padStart(2, '0');
   document.getElementById('cor-modelo').value = `#${rHex}${gHex}${bHex}`;
 }
 
@@ -176,7 +189,7 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
       const obj = cena[indiceSelecionado];
       const valor = parseFloat(e.target.value) || 0;
 
-      document.getElementById(`val-${id}`).innerText = valor.toFixed(1); //atualiza o texto verde do lado do nome do slider
+      document.getElementById(`val-${id}`).innerText = valor.toFixed(2); //atualiza o texto verde do lado do nome do slider
 
       if (id === 'pos-x') obj.posicao[0] = valor; //salva em graus
       if (id === 'pos-y') obj.posicao[1] = valor;
@@ -192,6 +205,32 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
     });
   });
   
+  const selectPai = document.getElementById('sel-pai');
+  if (selectPai){
+    selectPai.addEventListener('change', (e) =>{
+      if (indiceSelecionado === -1) return;
+      const novoPai = parseInt(e.target.value);
+
+      //impede que um filho seja selecionado como pai do seu pai
+      let seguro = true;
+      let temp = novoPai;
+      while (temp !== -1){
+        if (temp === indiceSelecionado){
+          seguro = false;
+          break;
+        }
+      temp = cena[temp].pai;
+      }
+
+      if (seguro){
+        cena[indiceSelecionado].pai = novoPai;
+      } else {
+        alert("Ação inválida, Pai do próprio pai.");
+        e.target.value = cena[indiceSelecionado].pai //reverte a caixa
+      }
+    });
+  }
+
   const inputCor = document.getElementById('cor-modelo'); //fica ouvindo pra mudar a cor, traduz pra webgl
   if (!inputCor) return;
 
@@ -237,8 +276,9 @@ function criarItemMenu(idUnico, nomeOBJ){
     cena.push({
       modeloId: idUnico,
       nomeOBJ: nomeOBJ, //nome pra mostrar na lista
+      pai: -1, //órfão
       cor: [0.8, 0.8, 0.8],
-      posicao: [(Math.random() - 0.5) * 4, -0.2, (Math.random() - 0.5) * -4 - 1],
+      posicao: [0, 0, 0],
       rotacao: [0, 0, 0], //em graus, 0 a 360
       escala: [1, 1, 1]
     });
@@ -336,7 +376,10 @@ function inicializarWebGL() {
 
   carregarModeloOBJ('carro', 'objetos/car_hatchback.obj', 'Chassi do Carro', {x: 0.015, y: -0.015, z: -0.4});
   carregarModeloOBJ('banco', 'objetos/bench.obj', 'Banco', {x: -0.015, y: -0.015, z: -0.2});
-  carregarModeloOBJ('pneu' , 'objetos/car_hatchback_wheel_front_left.obj', 'Pneu', {x: 0.019, y: 0.053, z: -0.24})
+  carregarModeloOBJ('pneu' , 'objetos/car_hatchback_wheel_front_left.obj', 'Pneu Dianteiro Esquerdo', {x: 0.019, y: 0.053, z: -0.24});
+  carregarModeloOBJ('pneu' , 'objetos/car_hatchback_wheel_front_right.obj', 'Pneu Dianteiro Direito', {x: 0.019, y: 0.053, z: -0.24});
+  carregarModeloOBJ('pneu' , 'objetos/car_hatchback_wheel_rear_left.obj', 'Pneu Traseiro Esquerdo', {x: 0.019, y: 0.053, z: -0.24});
+  carregarModeloOBJ('pneu' , 'objetos/car_hatchback_wheel_rear_right.obj', 'Pneu Traseiro Direito', {x: 0.019, y: 0.053, z: -0.24});
 
   requestAnimationFrame(renderizar); //inicia o loop da aplicação
 }
@@ -353,6 +396,32 @@ function redimensionarCanvas() {
     gl.viewport(0, 0, canvas.width, canvas.height); //avisa gpu o tamanho novo
   }
 }
+
+function obterMatrizGlobal(indice){
+  const instancia = cena[indice];
+
+  //calcula a matriz baseada nas propriedades desta instancia especifica
+  const matEscala = Matriz.escala(instancia.escala[0], instancia.escala[1], instancia.escala[2]);
+  const anguloX = instancia.rotacao[0] * (Math.PI / 180); //converte a rotação da interface pra radianos
+  const anguloY = instancia.rotacao[1] * (Math.PI / 180);
+  const anguloZ = instancia.rotacao[2] * (Math.PI / 180);
+
+  let matRot = Matriz.multiplicar(Matriz.rotacaoX(anguloX), Matriz.rotacaoY(anguloY));
+  matRot = Matriz.multiplicar(matRot, Matriz.rotacaoZ(anguloZ));
+
+  const matPos = Matriz.translacao(instancia.posicao[0], instancia.posicao[1], instancia.posicao[2]);
+
+  let matLocal = Matriz.multiplicar(matRot, matEscala);
+  matLocal = Matriz.multiplicar(matPos, matLocal);
+
+  if (instancia.pai === -1){ //não tem pai, matriz dele é a final
+    return matLocal;
+  }
+
+  const matPai = obterMatrizGlobal(instancia.pai); //se tem pai, pega a matriz global do pai e multiplica
+  return Matriz.multiplicar(matPai, matLocal);
+}
+
 //o loop
 function renderizar() {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); //limpa tela e o buffer de profundidade
@@ -371,24 +440,7 @@ function renderizar() {
     const modeloBib = bibliotecaModelos[instancia.modeloId];
 
     if(!modeloBib) continue; //pula o modelo se ele n foi baixado
-
-    //calcula a matriz baseada nas propriedades desta instancia especifica
-    const matEscala = Matriz.escala(instancia.escala[0], instancia.escala[1], instancia.escala[2]);
-    
-    const anguloX = instancia.rotacao[0] * (Math.PI / 180); //converte a rotação da interface pra radianos
-    const anguloY = instancia.rotacao[1] * (Math.PI / 180);
-    const anguloZ = instancia.rotacao[2] * (Math.PI / 180);
-    const matRotX = Matriz.rotacaoX(anguloX);
-    const matRotY = Matriz.rotacaoY(anguloY);
-    const matRotZ = Matriz.rotacaoZ(anguloZ);
-
-    let matRot = Matriz.multiplicar(matRotX, matRotY);
-    matRot = Matriz.multiplicar(matRot, matRotZ)
-    
-    const matPos = Matriz.translacao(instancia.posicao[0], instancia.posicao[1], instancia.posicao[2]);
-
-    let matModelo = Matriz.multiplicar(matRot, matEscala);
-    matModelo = Matriz.multiplicar(matPos, matModelo);
+    const matModelo = obterMatrizGlobal(i);
 
     let matrizFinal = Matriz.multiplicar(visualizacao, matModelo);
     matrizFinal = Matriz.multiplicar(projecao, matrizFinal);
@@ -400,8 +452,6 @@ function renderizar() {
     gl.bindVertexArray(modeloBib.vao);
     gl.drawArrays(gl.TRIANGLES, 0, modeloBib.contagemVertices);
   }
-
-
 
   requestAnimationFrame(renderizar); //chama a função de novo no próximo frame
 }

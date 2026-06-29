@@ -154,7 +154,11 @@ function selecionarObjeto(indice){
     }
   }
 
-  selectPai.value = obj.pai; //seleciona o pai atual do objeto
+  if (obj.pai !== null){ //seleciona o pai atual do objeto
+    selectPai.value = cena.indexOf(obj.pai);
+  } else {
+    selectPai.value = -1;
+  }
 
   function setValor(id, valor){ //função auxiliar pra atualizar o slider e o numero ao mesmo tempo
     document.getElementById(id).value = valor;
@@ -175,6 +179,11 @@ function selecionarObjeto(indice){
   const gHex = Math.round(obj.cor[1] * 255).toString(16).padStart(2, '0');
   const bHex = Math.round(obj.cor[2] * 255).toString(16).padStart(2, '0');
   document.getElementById('cor-modelo').value = `#${rHex}${gHex}${bHex}`;
+
+  document.getElementById('anim-ativa').checked = obj.animacao.ativa;
+  document.getElementById('anim-eixo').value = obj.animacao.eixo;
+  document.getElementById('anim-vel').value = obj.animacao.velocidade;
+  document.getElementById('val-anim-vel').value = obj.animacao.velocidade.toFixed(3);
 }
 
 function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em tempo real
@@ -209,27 +218,95 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
   if (selectPai){
     selectPai.addEventListener('change', (e) =>{
       if (indiceSelecionado === -1) return;
-      const novoPai = parseInt(e.target.value);
+      const novoPaiIndice = parseInt(e.target.value);
+      const objFilho = cena[indiceSelecionado];
 
       //impede que um filho seja selecionado como pai do seu pai
       let seguro = true;
-      let temp = novoPai;
-      while (temp !== -1){
-        if (temp === indiceSelecionado){
+      let tempPai;
+
+      if(novoPaiIndice !== -1){
+        tempPai = cena[novoPaiIndice];
+      } else {
+        tempPai = null;
+      }
+
+      while (tempPai){
+        if (tempPai === objFilho){
           seguro = false;
           break;
         }
-      temp = cena[temp].pai;
+      tempPai = tempPai.pai;
       }
 
       if (seguro){
-        cena[indiceSelecionado].pai = novoPai;
+        const paiAntigo = objFilho.pai;
+        
+        if (paiAntigo !== null){ //se tinha pai, volta pra absoluta do mundo
+          objFilho.posicao[0] += paiAntigo.posicao[0];
+          objFilho.posicao[1] += paiAntigo.posicao[1];
+          objFilho.posicao[2] += paiAntigo.posicao[2];
+        }
+
+        if (novoPaiIndice !== -1){
+          const novoPai = cena[novoPaiIndice];
+          objFilho.posicao[0] -= novoPai.posicao[0];
+          objFilho.posicao[1] -= novoPai.posicao[1];
+          objFilho.posicao[2] -= novoPai.posicao[2];
+        }
+
+        if (objFilho.pai){ //remove filgo do pai antigo
+          const indexAntigo = objFilho.pai.filhos.indexOf(objFilho);
+          if (indexAntigo > -1) objFilho.pai.filhos.splice(indexAntigo, 1);
+        }
+
+        if (novoPaiIndice !== -1){ //associa ao novo pai
+          const novoPai = cena[novoPaiIndice];
+          objFilho.pai = novoPai;
+          novoPai.filhos.push(objFilho); //entra na array de filhos
+        } else {
+            objFilho.pai = null;
+
+        }
       } else {
-        alert("Ação inválida, Pai do próprio pai.");
-        e.target.value = cena[indiceSelecionado].pai //reverte a caixa
+          alert("Ação inválida, Pai do próprio pai.");
+          if (objFilho.pai !== null){
+            e.target.value = cena.indexOf(objFilho.pai);
+          } else {
+            e.target.value = -1;
+          }
+      }
+      selecionarObjeto(indiceSelecionado);
+    });
+
+  const animAtiva = document.getElementById('anim-ativa');
+  if (animAtiva) {
+    animAtiva.addEventListener('change', (e) =>{
+      if (indiceSelecionado !== -1){
+        cena[indiceSelecionado].animacao.ativa = e.target.checked;
       }
     });
   }
+
+  const animEixo = document.getElementById('anim-eixo');
+  if (animEixo) {
+    animEixo.addEventListener('change', (e) =>{
+      if (indiceSelecionado !== -1){
+        cena[indiceSelecionado].animacao.eixo = parseInt(e.target.value);
+      }
+    });
+  }
+
+  const animVel = document.getElementById('anim-vel');
+  if (animVel) {
+    animVel.addEventListener('input', (e) =>{
+      if (indiceSelecionado === -1) return;
+      const val = parseFloat(e.target.value);
+      cena[indiceSelecionado].animacao.velocidade = val;
+      document.getElementById('val-anim-vel').innerText = val.toFixed(3);
+    });
+  }
+  
 
   const inputCor = document.getElementById('cor-modelo'); //fica ouvindo pra mudar a cor, traduz pra webgl
   if (!inputCor) return;
@@ -244,7 +321,8 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
     const b = parseInt(hex.substring(5, 7), 16) / 255;
 
     cena[indiceSelecionado].cor = [r, g, b]; //guarda na memoria do carro
-  });
+    });
+  }
 }
 
 function criarItemMenu(idUnico, nomeOBJ){
@@ -276,7 +354,11 @@ function criarItemMenu(idUnico, nomeOBJ){
     cena.push({
       modeloId: idUnico,
       nomeOBJ: nomeOBJ, //nome pra mostrar na lista
-      pai: -1, //órfão
+      pai: null, //órfão
+      filhos: [], //lista que guarda os dependentes dele
+      matrizLocal: null, //vai ser calculada
+      matrizGlobal: null,//vai ser calculada
+      animacao: {ativa: false, eixo: 2, velocidade: 0.01}, //anda no eixo z
       cor: [0.8, 0.8, 0.8],
       posicao: [0, 0, 0],
       rotacao: [0, 0, 0], //em graus, 0 a 360
@@ -376,10 +458,10 @@ function inicializarWebGL() {
 
   carregarModeloOBJ('carro', 'objetos/car_hatchback.obj', 'Chassi do Carro', {x: 0.015, y: -0.015, z: -0.4});
   carregarModeloOBJ('banco', 'objetos/bench.obj', 'Banco', {x: -0.015, y: -0.015, z: -0.2});
-  carregarModeloOBJ('pneu' , 'objetos/car_hatchback_wheel_front_left.obj', 'Pneu Dianteiro Esquerdo', {x: 0.019, y: 0.053, z: -0.24});
-  carregarModeloOBJ('pneu' , 'objetos/car_hatchback_wheel_front_right.obj', 'Pneu Dianteiro Direito', {x: 0.019, y: 0.053, z: -0.24});
-  carregarModeloOBJ('pneu' , 'objetos/car_hatchback_wheel_rear_left.obj', 'Pneu Traseiro Esquerdo', {x: 0.019, y: 0.053, z: -0.24});
-  carregarModeloOBJ('pneu' , 'objetos/car_hatchback_wheel_rear_right.obj', 'Pneu Traseiro Direito', {x: 0.019, y: 0.053, z: -0.24});
+  carregarModeloOBJ('pneu-de' , 'objetos/car_hatchback_wheel_front_left.obj', 'Pneu Dianteiro Esquerdo', {x: 0.019, y: 0.053, z: -0.24});
+  carregarModeloOBJ('pneu-dd' , 'objetos/car_hatchback_wheel_front_right.obj', 'Pneu Dianteiro Direito', {x: 0.019, y: 0.053, z: -0.24});
+  carregarModeloOBJ('pneu-te' , 'objetos/car_hatchback_wheel_rear_left.obj', 'Pneu Traseiro Esquerdo', {x: 0.019, y: 0.053, z: -0.24});
+  carregarModeloOBJ('pneu-td' , 'objetos/car_hatchback_wheel_rear_right.obj', 'Pneu Traseiro Direito', {x: 0.019, y: 0.053, z: -0.24});
 
   requestAnimationFrame(renderizar); //inicia o loop da aplicação
 }
@@ -397,29 +479,30 @@ function redimensionarCanvas() {
   }
 }
 
-function obterMatrizGlobal(indice){
-  const instancia = cena[indice];
-
-  //calcula a matriz baseada nas propriedades desta instancia especifica
-  const matEscala = Matriz.escala(instancia.escala[0], instancia.escala[1], instancia.escala[2]);
-  const anguloX = instancia.rotacao[0] * (Math.PI / 180); //converte a rotação da interface pra radianos
-  const anguloY = instancia.rotacao[1] * (Math.PI / 180);
-  const anguloZ = instancia.rotacao[2] * (Math.PI / 180);
+function atualizarGrafoCena(nodo, matrizGlobalPai) {
+  //calcula a matriz local do objeto sozinho
+  const matEscala = Matriz.escala(nodo.escala[0], nodo.escala[1], nodo.escala[2]);
+  const anguloX = nodo.rotacao[0] * (Math.PI / 180);
+  const anguloY = nodo.rotacao[1] * (Math.PI / 180);
+  const anguloZ = nodo.rotacao[2] * (Math.PI / 180);
 
   let matRot = Matriz.multiplicar(Matriz.rotacaoX(anguloX), Matriz.rotacaoY(anguloY));
   matRot = Matriz.multiplicar(matRot, Matriz.rotacaoZ(anguloZ));
 
-  const matPos = Matriz.translacao(instancia.posicao[0], instancia.posicao[1], instancia.posicao[2]);
+  const matPos = Matriz.translacao(nodo.posicao[0], nodo.posicao[1], nodo.posicao[2]);
 
   let matLocal = Matriz.multiplicar(matRot, matEscala);
-  matLocal = Matriz.multiplicar(matPos, matLocal);
+  nodo.matrizLocal = Matriz.multiplicar(matPos, matLocal);
 
-  if (instancia.pai === -1){ //não tem pai, matriz dele é a final
-    return matLocal;
+  if (matrizGlobalPai) { //calcula a global, se tem pai multiplica, se n tem é a própria
+    nodo.matrizGlobal = Matriz.multiplicar(matrizGlobalPai, nodo.matrizLocal);
+  } else {
+    nodo.matrizGlobal = nodo.matrizLocal;
   }
 
-  const matPai = obterMatrizGlobal(instancia.pai); //se tem pai, pega a matriz global do pai e multiplica
-  return Matriz.multiplicar(matPai, matLocal);
+  nodo.filhos.forEach(filho => { //propaga a matriz global pronta pra todos os filhos
+    atualizarGrafoCena(filho, nodo.matrizGlobal);
+  });
 }
 
 //o loop
@@ -434,15 +517,32 @@ function renderizar() {
   visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoX(Math.PI / 6));  //gira o mundo em 30 graus (cima)
   visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoY(-Math.PI / 4)); //gira o mundo em 45 graus (diagonal)
 
+  cena.forEach((obj, index) => {
+    if (obj.animacao.ativa){
+      obj.posicao[obj.animacao.eixo] += obj.animacao.velocidade; //soma a velocidade na posição do eixo escolhido
+
+      if (index === indiceSelecionado){
+        const idsPos = ['pos-x', 'pos-y', 'pos-z'];
+        const idHtml = idsPos[obj.animacao.eixo];
+        document.getElementById(idHtml).value = obj.posicao[obj.animacao.eixo];
+        document.getElementById(`val-${idHtml}`).innerText = obj.posicao[obj.animacao.eixo].toFixed(2);
+      }
+    }
+  });
+
+  cena.forEach(obj => { //atualiza a arvore, busca quem n tem pai e inicia a cascata
+    if (obj.pai === null){
+      atualizarGrafoCena(obj, null)
+    }
+  });
 
   for (let i = 0; i <cena.length; i++){ //percorre os objetos que estão na lista da cena
     const instancia = cena[i];
     const modeloBib = bibliotecaModelos[instancia.modeloId];
 
-    if(!modeloBib) continue; //pula o modelo se ele n foi baixado
-    const matModelo = obterMatrizGlobal(i);
+    if(!modeloBib || !instancia.matrizGlobal) continue; //pula o modelo se ele n foi baixado
 
-    let matrizFinal = Matriz.multiplicar(visualizacao, matModelo);
+    let matrizFinal = Matriz.multiplicar(visualizacao, instancia.matrizGlobal); //ja pega a matriz pronta, sem precisar calcular de novo
     matrizFinal = Matriz.multiplicar(projecao, matrizFinal);
 
     gl.uniformMatrix4fv(u_matrizLoc, false, matrizFinal); //envia a matriz pra GPU

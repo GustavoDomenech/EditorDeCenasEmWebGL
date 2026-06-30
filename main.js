@@ -2,7 +2,13 @@ let gl;
 let canvas;
 let programaGlobal;
 let u_matrizLoc;
-let u_corLoc;
+let u_texturaLoc;
+let u_corLoc
+let texturaGlobal = null; //vai guardar a imagem na memória
+let mousePressionado = false;
+let mousePosicaoAnterior = {x: 0, y: 0};
+let anguloCameraX = Math.PI / 6;
+let anguloCameraY = -Math.PI / 4;
 let indiceSelecionado = -1 //guarda o objeto sendo editado
 const bibliotecaModelos = {}; //guarda a vram
 const cena = []; //guarda os objetos na tela
@@ -12,15 +18,18 @@ const vertexShaderSource = `#version 300 es
     //atributo que vai receber as coordenadas do vertice do .obj
     in vec3 a_posicao;
     in vec3 a_normal;
+    in vec2 a_texCoord; //recebe uv do buffer
     
     //matriz de transformação
     uniform mat4 u_matriz;
     
     out vec3 v_normal;
+    out vec2 v_texCoord; //repassa o uv pro fragment shader
 
     void main(){
         gl_Position = u_matriz * vec4(a_posicao, 1.0);
         v_normal = a_normal; //repassa a normal pro fragment shader
+        v_texCoord = a_texCoord;
     }
 `;
 
@@ -28,14 +37,19 @@ const fragmentShaderSource = `#version 300 es
     precision highp float; //define a precisao dos floats
 
     in vec3 v_normal;
-    uniform vec3 u_cor; //cor a ser enviada
-    out vec4 corSaida; //saida de cor do fragmento (pixel)
+    in vec2 v_texCoord; //receve o uv do vertex shader
+
+    uniform sampler2D u_textura; //a imagem da textura
+    uniform vec3 u_cor; //cor aplicada a textura
+
+    out vec4 corSaida;
 
     void main(){
         vec3 luzDirecao = normalize(vec3(1.0, 1.5, 0.5)); //fonte de luz vindo da diagonal superior
         float luz = max(dot(normalize(v_normal), luzDirecao), 0.3); //calcula se a luz bate de frente com o triangulo, 0.3 = claridade minima
-        corSaida = vec4(u_cor * luz, 1.0); //pinta o pixel com a cor escolhida iluminada
-    }
+        vec4 corTextura = texture(u_textura, v_texCoord); //le a cor exata do pixel na imagem usando as coordenadas
+        corSaida = vec4(corTextura.rgb * u_cor * luz, corTextura.a); //multiplica a textura pela cor do html
+      }
 `;
 
 function criarShader(gl, tipo, codigoFonte) {
@@ -80,6 +94,9 @@ function gerarIconeBase64(modeloBib){
   gl.clearColor(0.25, 0.25, 0.25, 1.0);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.useProgram(programaGlobal);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, texturaGlobal);
+  gl.uniform1i(u_texturaLoc, 0);
 
   //configura a matriz pra tirar a foto
   const projecao = Matriz.perspectiva((60 * Math.PI) / 180, 1.0, 0.1, 100.0);
@@ -97,7 +114,7 @@ function gerarIconeBase64(modeloBib){
   let matrizFinal = Matriz.multiplicar(projecao, matModelo);
 
   gl.uniformMatrix4fv(u_matrizLoc, false, matrizFinal);
-  gl.uniform3fv(u_corLoc, [0.8, 0.8, 0.8]);
+  gl.uniform3fv(u_corLoc, [1.0, 1.0, 1.0]);
 
   gl.bindVertexArray(modeloBib.vao);
   gl.drawArrays(gl.TRIANGLES, 0, modeloBib.contagemVertices);
@@ -144,7 +161,7 @@ function selecionarObjeto(indice){
   document.getElementById('painel-transformacoes').style.display = 'block'; //mostra os inputs
 
   const selectPai = document.getElementById('sel-pai');
-  selectPai.innerHTML = '<option value="-1">Nenhum (Mundo)</option>'; //reseta
+  selectPai.innerHTML = '<option value="-1">Nenhum</option>'; //reseta
   for (let i = 0; i < cena.length; i++){
     if (i !== indice) { //não mostra o objeto na lista
       const opt = document.createElement('option');
@@ -183,7 +200,7 @@ function selecionarObjeto(indice){
   document.getElementById('anim-ativa').checked = obj.animacao.ativa;
   document.getElementById('anim-eixo').value = obj.animacao.eixo;
   document.getElementById('anim-vel').value = obj.animacao.velocidade;
-  document.getElementById('val-anim-vel').value = obj.animacao.velocidade.toFixed(3);
+  document.getElementById('val-anim-vel').innerText = obj.animacao.velocidade.toFixed(3);
 }
 
 function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em tempo real
@@ -278,6 +295,7 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
       }
       selecionarObjeto(indiceSelecionado);
     });
+  }
 
   const animAtiva = document.getElementById('anim-ativa');
   if (animAtiva) {
@@ -306,23 +324,53 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
       document.getElementById('val-anim-vel').innerText = val.toFixed(3);
     });
   }
-  
 
-  const inputCor = document.getElementById('cor-modelo'); //fica ouvindo pra mudar a cor, traduz pra webgl
-  if (!inputCor) return;
-
-  inputCor.addEventListener('input', (e) => {
-    if (indiceSelecionado === -1) return;
-    const hex = e.target.value; //formato rrggbb
-
-    //converte o hexadecimal pra rgb
-    const r = parseInt(hex.substring(1, 3), 16) / 255;
-    const g = parseInt(hex.substring(3, 5), 16) / 255;
-    const b = parseInt(hex.substring(5, 7), 16) / 255;
-
-    cena[indiceSelecionado].cor = [r, g, b]; //guarda na memoria do carro
+  const inputCor = document.getElementById('cor-modelo'); 
+  if (inputCor) {
+    inputCor.addEventListener('input', (e) => {
+      if (indiceSelecionado === -1) return;
+      const hex = e.target.value; 
+      const r = parseInt(hex.substring(1, 3), 16) / 255;
+      const g = parseInt(hex.substring(3, 5), 16) / 255;
+      const b = parseInt(hex.substring(5, 7), 16) / 255;
+      cena[indiceSelecionado].cor = [r, g, b]; 
     });
   }
+}
+
+function configurarCamera(){
+  canvas.addEventListener('mousedown', (e) =>{  //quando aperta o botão do mouse
+    if (e.button === 0) { //0 é o botao esquerdo
+      mousePressionado = true;
+      mousePosicaoAnterior = {x: e.offsetX, y: e.offsetY};
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (mousePressionado) {
+      const deltaX = e.offsetX - mousePosicaoAnterior.x;
+      const deltaY = e.offsetY - mousePosicaoAnterior.y;
+
+      const sensibilidade = 0.01;
+
+      anguloCameraY -= deltaX * sensibilidade //movimento horizontal gira o mundo no eixo y
+      anguloCameraX -= deltaY * sensibilidade //movimento vertical gira o mundo no eixo x
+      
+      //trava do angulo x pra camera n ficar de cabeça pra baixo
+      const limite = Math.PI / 2 - 0.01 //quase 90 graus
+      anguloCameraX = Math.max(-limite, Math.min(limite, anguloCameraX));
+
+      mousePosicaoAnterior = {x: e.offsetX, y: e.offsetY};
+    }
+  });
+
+  window.addEventListener('mouseup', () =>{
+    mousePressionado = false;
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    mousePressionado = false;
+  });
 }
 
 function criarItemMenu(idUnico, nomeOBJ){
@@ -358,8 +406,8 @@ function criarItemMenu(idUnico, nomeOBJ){
       filhos: [], //lista que guarda os dependentes dele
       matrizLocal: null, //vai ser calculada
       matrizGlobal: null,//vai ser calculada
-      animacao: {ativa: false, eixo: 2, velocidade: 0.01}, //anda no eixo z
-      cor: [0.8, 0.8, 0.8],
+      animacao: {ativa: false, eixo: 2, velocidade: 0.001}, //anda no eixo z
+      cor: [1.0, 1.0, 1.0],
       posicao: [0, 0, 0],
       rotacao: [0, 0, 0], //em graus, 0 a 360
       escala: [1, 1, 1]
@@ -386,6 +434,31 @@ function criarItemMenu(idUnico, nomeOBJ){
   divLista.appendChild(divItem);
 
 };
+
+function carregarTextura(gl, url){
+  const textura = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, textura);
+
+  const corTemp = new Uint8Array([255, 2555, 255, 255]);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, corTemp);
+
+  const imagem = new Image(); //carrega a imagem real
+  imagem.onload = function(){
+    gl.bindTexture(gl.TEXTURE_2D, textura);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imagem);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    console.log("Textura carregada com sucesso!");
+  }
+
+  imagem.src = url;
+
+  return textura;
+}
 
 async function carregarModeloOBJ(idUnico ,nomeArquivo, nomeOBJ, configIcone = {x: 0.015, y: -0.015, z: -0.4}) {
   try { 
@@ -414,6 +487,14 @@ async function carregarModeloOBJ(idUnico ,nomeArquivo, nomeOBJ, configIcone = {x
     gl.bufferData(gl.ARRAY_BUFFER, dadosModelo.normais, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(a_normalLoc);
     gl.vertexAttribPointer(a_normalLoc, 3, gl.FLOAT, false, 0, 0);
+
+    //buffer de coordenadas da textura
+    const a_texCoordLoc = gl.getAttribLocation(programaGlobal, "a_texCoord");
+    const bufferTex = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, bufferTex);
+    gl.bufferData(gl.ARRAY_BUFFER, dadosModelo.texCoords, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(a_texCoordLoc);
+    gl.vertexAttribPointer(a_texCoordLoc, 2, gl.FLOAT, false, 0, 0); //2 pq é so U e V
 
     gl.bindVertexArray(null); //trava o vao
 
@@ -446,7 +527,10 @@ function inicializarWebGL() {
 
   programaGlobal = criarPrograma(gl, vertexShader, fragmentShader);
   u_matrizLoc = gl.getUniformLocation(programaGlobal, "u_matriz");
+  u_texturaLoc = gl.getUniformLocation(programaGlobal, "u_textura");
   u_corLoc = gl.getUniformLocation(programaGlobal, "u_cor");
+
+  texturaGlobal = carregarTextura(gl, 'objetos/citybits_texture.png');
 
   redimensionarCanvas(); //tamanho inicial
   window.addEventListener("resize", redimensionarCanvas); //arrumar canvas quando a janela muda de tamanho
@@ -455,12 +539,13 @@ function inicializarWebGL() {
   gl.enable(gl.DEPTH_TEST); //teste de profundidade, z-buffer
 
   configurarInputs(); //liga os eventos da caixa de texto html
+  configurarCamera();
 
   carregarModeloOBJ('carro', 'objetos/car_hatchback.obj', 'Chassi do Carro', {x: 0.015, y: -0.015, z: -0.4});
   carregarModeloOBJ('banco', 'objetos/bench.obj', 'Banco', {x: -0.015, y: -0.015, z: -0.2});
   carregarModeloOBJ('pneu-de' , 'objetos/car_hatchback_wheel_front_left.obj', 'Pneu Dianteiro Esquerdo', {x: 0.019, y: 0.053, z: -0.24});
-  carregarModeloOBJ('pneu-dd' , 'objetos/car_hatchback_wheel_front_right.obj', 'Pneu Dianteiro Direito', {x: 0.019, y: 0.053, z: -0.24});
-  carregarModeloOBJ('pneu-te' , 'objetos/car_hatchback_wheel_rear_left.obj', 'Pneu Traseiro Esquerdo', {x: 0.019, y: 0.053, z: -0.24});
+  carregarModeloOBJ('pneu-dd' , 'objetos/car_hatchback_wheel_front_right.obj', 'Pneu Dianteiro Direito', {x: 0.12, y: 0.01, z: -0.15});
+  carregarModeloOBJ('pneu-te' , 'objetos/car_hatchback_wheel_rear_left.obj', 'Pneu Traseiro Esquerdo', {x: -0.12, y: -0.01, z: -0.12});
   carregarModeloOBJ('pneu-td' , 'objetos/car_hatchback_wheel_rear_right.obj', 'Pneu Traseiro Direito', {x: 0.019, y: 0.053, z: -0.24});
 
   requestAnimationFrame(renderizar); //inicia o loop da aplicação
@@ -514,8 +599,12 @@ function renderizar() {
   const aspect = canvas.width / canvas.height
   const projecao = Matriz.perspectiva((60 * Math.PI) / 180, aspect, 0.1, 100.0);  //campo de visão de 60 graus, baseado na tela do canvas
   let visualizacao = Matriz.translacao(0, -2.0, -4.0);   //configura a visualização (posição da camera da cena principal)
-  visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoX(Math.PI / 6));  //gira o mundo em 30 graus (cima)
-  visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoY(-Math.PI / 4)); //gira o mundo em 45 graus (diagonal)
+  visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoX(anguloCameraX));  //gira o mundo em 30 graus (cima)
+  visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoY(anguloCameraY)); //gira o mundo em 45 graus (diagonal)
+
+  gl.activeTexture(gl.TEXTURE0); //ativa o slot 0 da textura e envia a imagem
+  gl.bindTexture(gl.TEXTURE_2D, texturaGlobal);
+  gl.uniform1i(u_texturaLoc, 0);
 
   cena.forEach((obj, index) => {
     if (obj.animacao.ativa){
@@ -546,7 +635,7 @@ function renderizar() {
     matrizFinal = Matriz.multiplicar(projecao, matrizFinal);
 
     gl.uniformMatrix4fv(u_matrizLoc, false, matrizFinal); //envia a matriz pra GPU
-    gl.uniform3fv(u_corLoc, instancia.cor); //envia a cor escolhida pra gpu
+    gl.uniform3fv(u_corLoc, instancia.cor) //envia a cor do obj
 
     //pega o endereço de memoria vao na biblioteca e desenha
     gl.bindVertexArray(modeloBib.vao);
@@ -554,6 +643,103 @@ function renderizar() {
   }
 
   requestAnimationFrame(renderizar); //chama a função de novo no próximo frame
+}
+
+function salvarCena(){
+  if (cena.length === 0){
+    alert("A cena está vazia, adicone objetos antes de salvar.");
+    return;
+  }
+
+  //cria a versao limpa da cena, sem loop
+  const cenaSerializada = cena.map(obj => {
+
+    let indicePai;
+    if (obj.pai !== null) {
+      indicePai = cena.indexOf(obj.pai);
+    } else {
+      indicePai = -1;
+    }
+    
+    return {
+      modeloId: obj.modeloId,
+      nomeOBJ: obj.nomeOBJ,
+      paiIndex: indicePai, //salva só o numero da posição do pai
+      posicao: [...obj.posicao],
+      rotacao: [...obj.rotacao],
+      escala: [...obj.escala],
+      cor: [...obj.cor],
+      animacao: {...obj.animacao}
+    }
+  });
+
+  const jsonStr = JSON.stringify(cenaSerializada, null, 2); //converte para texto json formatado com 2 espaços
+
+  //cria o arquivo virtual e faz o download
+  const blob = new Blob([jsonStr], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Minha_Cena.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function carregarCena(evento) {
+  const arquivo = evento.target.files[0];
+  if (!arquivo) return;
+
+  const leitor = new FileReader();
+
+  leitor.onload = function(e){
+    try {
+      const dados = JSON.parse(e.target.result);
+
+      //apaga a cena atual e esconde o menu de edições
+      cena.length = 0;
+      indiceSelecionado = -1;
+      document.getElementById('painel-transformacoes').style.display = 'none';
+
+      //recria os objetos na memoria exatamente como tavam
+      dados.forEach(dado =>{
+        cena.push({
+          modeloId: dado.modeloId,
+          nomeOBJ: dado.nomeOBJ,
+          pai: null,
+          filhos: [],
+          matrizLocal: null,
+          matrizGlobal: null,
+          posicao: [...dado.posicao],
+          rotacao: [...dado.rotacao],
+          escala: [...dado.escala],
+          cor: [...dado.cor],
+          animacao: {...dado.animacao}
+        });
+      });
+
+      //reconstroi o grafo de cena (liga os filhos aos pais)
+      dados.forEach((dado, index) => {
+        if (dado.paiIndex !== -1){
+          const paiObj = cena[dado.paiIndex];
+          const filhoObj = cena[index];
+
+          filhoObj.pai = paiObj;
+          paiObj.filhos.push(filhoObj);
+        }
+      });
+
+    //atualiza a tela
+    atualizarListaCena();
+    alert("Cena carregada com sucesso!");
+
+    } catch (erro){
+      console.error("Erro ao ler JSON", erro);
+      alert("O arquivo selecionado não é um JSON válido.");
+    }
+    evento.target.value = ''; //reseta o input pra poder carregar o mesmo arquivo de novo se quiser
+  };
+
+  leitor.readAsText(arquivo);
 }
 
 window.onload = inicializarWebGL; //executa a inicialização quando o html termina de carregar

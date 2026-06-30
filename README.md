@@ -14,9 +14,7 @@ Se você deseja rodar ou modificar o projeto localmente.
 
 > **Aviso:** Como o WebGL precisa fazer requisições assíncronas (via fetch) para carregar os arquivos .obj e a imagem de textura, as políticas de segurança dos navegadores impedem que o projeto funcione apenas clicando duas vezes no arquivo index.html. É necessário um servidor local.
 
-1. Clone o repositório:
-   git clone https://github.com/GustavoDomenech/EditorDeCenasEmWebGL
-2. Abra a pasta do projeto no **Visual Studio Code**.
-3. Instale a extensão **Live Server** (caso não tenha).
-4. Clique com o botão direito no arquivo `index.html` e selecione **"Open with Live Server"**.
-5. O editor abrirá automaticamente no seu navegador padrão.
+1. Abra a pasta do projeto no **Visual Studio Code**.
+2. Instale a extensão **Live Server** (caso não tenha).
+3. Clique com o botão direito no arquivo `index.html` e selecione **"Open with Live Server"**.
+4. O editor abrirá automaticamente no seu navegador padrão.

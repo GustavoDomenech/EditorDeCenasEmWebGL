@@ -3,52 +3,49 @@ let canvas;
 let programaGlobal;
 let u_matrizLoc;
 let u_texturaLoc;
-let u_corLoc
-let texturaGlobal = null; //vai guardar a imagem na memória
+let u_corLoc;
+let texturaGlobal = null; 
 let mousePressionado = false;
 let mousePosicaoAnterior = {x: 0, y: 0};
 let anguloCameraX = Math.PI / 6;
 let anguloCameraY = -Math.PI / 4;
-let indiceSelecionado = -1 //guarda o objeto sendo editado
-const bibliotecaModelos = {}; //guarda a vram
-const cena = []; //guarda os objetos na tela
-
+let indiceSelecionado = -1;
+const bibliotecaModelos = {}; 
+const cena = []; 
 
 const vertexShaderSource = `#version 300 es
-    //atributo que vai receber as coordenadas do vertice do .obj
     in vec3 a_posicao;
     in vec3 a_normal;
-    in vec2 a_texCoord; //recebe uv do buffer
+    in vec2 a_texCoord; 
     
-    //matriz de transformação
     uniform mat4 u_matriz;
     
     out vec3 v_normal;
-    out vec2 v_texCoord; //repassa o uv pro fragment shader
+    out vec2 v_texCoord; 
 
     void main(){
         gl_Position = u_matriz * vec4(a_posicao, 1.0);
-        v_normal = a_normal; //repassa a normal pro fragment shader
+        v_normal = a_normal; 
         v_texCoord = a_texCoord;
     }
 `;
 
 const fragmentShaderSource = `#version 300 es
-    precision highp float; //define a precisao dos floats
+    precision highp float; 
 
     in vec3 v_normal;
-    in vec2 v_texCoord; //receve o uv do vertex shader
+    in vec2 v_texCoord; 
 
-    uniform sampler2D u_textura; //a imagem da textura
-    uniform vec3 u_cor; //cor aplicada a textura
+    uniform sampler2D u_textura; 
+    uniform vec3 u_cor; 
 
     out vec4 corSaida;
 
     void main(){
-        vec3 luzDirecao = normalize(vec3(1.0, 1.5, 0.5)); //fonte de luz vindo da diagonal superior
-        float luz = max(dot(normalize(v_normal), luzDirecao), 0.3); //calcula se a luz bate de frente com o triangulo, 0.3 = claridade minima
-        vec4 corTextura = texture(u_textura, v_texCoord); //le a cor exata do pixel na imagem usando as coordenadas
-        corSaida = vec4(corTextura.rgb * u_cor * luz, corTextura.a); //multiplica a textura pela cor do html
+        vec3 luzDirecao = normalize(vec3(1.0, 1.5, 0.5)); 
+        float luz = max(dot(normalize(v_normal), luzDirecao), 0.3); 
+        vec4 corTextura = texture(u_textura, v_texCoord); 
+        corSaida = vec4(corTextura.rgb * u_cor * luz, corTextura.a); 
       }
 `;
 
@@ -57,7 +54,7 @@ function criarShader(gl, tipo, codigoFonte) {
   gl.shaderSource(shader, codigoFonte);
   gl.compileShader(shader);
 
-  const sucesso = gl.getShaderParameter(shader, gl.COMPILE_STATUS); //teste
+  const sucesso = gl.getShaderParameter(shader, gl.COMPILE_STATUS); 
   if (sucesso) {
     return shader;
   }
@@ -82,7 +79,6 @@ function criarPrograma(gl, vertexShader, fragmentShader) {
 }
 
 function gerarIconeBase64(modeloBib){
-  //guarda o tamanho original do canvas
   const larguraOriginal = canvas.width;
   const alturaOriginal = canvas.height;
 
@@ -90,7 +86,6 @@ function gerarIconeBase64(modeloBib){
   canvas.height = 128;
   gl.viewport(0, 0, 128, 128);
 
-  //limpa o fundo
   gl.clearColor(0.25, 0.25, 0.25, 1.0);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.useProgram(programaGlobal);
@@ -98,7 +93,6 @@ function gerarIconeBase64(modeloBib){
   gl.bindTexture(gl.TEXTURE_2D, texturaGlobal);
   gl.uniform1i(u_texturaLoc, 0);
 
-  //configura a matriz pra tirar a foto
   const projecao = Matriz.perspectiva((60 * Math.PI) / 180, 1.0, 0.1, 100.0);
   const matEscala = Matriz.escala(0.4, 0.4, 0.4);
   let matRot = Matriz.multiplicar(Matriz.rotacaoX(Math.PI / 6), Matriz.rotacaoY(-Math.PI / 4));
@@ -119,9 +113,8 @@ function gerarIconeBase64(modeloBib){
   gl.bindVertexArray(modeloBib.vao);
   gl.drawArrays(gl.TRIANGLES, 0, modeloBib.contagemVertices);
 
-  const dataUrl = canvas.toDataURL('image/png'); //tira foto em formato base64
+  const dataUrl = canvas.toDataURL('image/png'); 
   
-  //restaura tudo pra poder continuar
   canvas.width = larguraOriginal;
   canvas.height = alturaOriginal;
   gl.viewport(0, 0, larguraOriginal, alturaOriginal);
@@ -130,10 +123,10 @@ function gerarIconeBase64(modeloBib){
   return dataUrl;
 }
 
-function atualizarListaCena(){ //atualiza a lista de objetos no menu da esquerda
+function atualizarListaCena(){ 
   const lista = document.getElementById('lista-cena');
   if (!lista) return;
-  lista.innerHTML = ''; //limpa a lista
+  lista.innerHTML = ''; 
 
   for (let i = 0; i < cena.length; i++){
     const item = document.createElement('li');
@@ -143,7 +136,7 @@ function atualizarListaCena(){ //atualiza a lista de objetos no menu da esquerda
     item.style.borderBottom = "1px solid #444"
 
     if (i === indiceSelecionado){
-      item.style.backgroundColor = "#4CAF50"; //pinta de verde se for o objeto selecionado
+      item.style.backgroundColor = "#4CAF50"; 
       item.style.color = "white";
     }
 
@@ -154,16 +147,16 @@ function atualizarListaCena(){ //atualiza a lista de objetos no menu da esquerda
 
 function selecionarObjeto(indice){
   indiceSelecionado = indice;
-  atualizarListaCena(); //atualiza as cores da lista
+  atualizarListaCena(); 
 
   const obj = cena[indice];
   document.getElementById('nome-selecionado').innerText = `${obj.nomeOBJ} ${indice + 1}`;
-  document.getElementById('painel-transformacoes').style.display = 'block'; //mostra os inputs
+  document.getElementById('painel-transformacoes').style.display = 'block'; 
 
   const selectPai = document.getElementById('sel-pai');
-  selectPai.innerHTML = '<option value="-1">Nenhum</option>'; //reseta
+  selectPai.innerHTML = '<option value="-1">Nenhum</option>'; 
   for (let i = 0; i < cena.length; i++){
-    if (i !== indice) { //não mostra o objeto na lista
+    if (i !== indice) { 
       const opt = document.createElement('option');
       opt.value = i;
       opt.innerText = `${cena[i].nomeOBJ} ${i + 1}`;
@@ -171,13 +164,13 @@ function selecionarObjeto(indice){
     }
   }
 
-  if (obj.pai !== null){ //seleciona o pai atual do objeto
+  if (obj.pai !== null){ 
     selectPai.value = cena.indexOf(obj.pai);
   } else {
     selectPai.value = -1;
   }
 
-  function setValor(id, valor){ //função auxiliar pra atualizar o slider e o numero ao mesmo tempo
+  function setValor(id, valor){ 
     document.getElementById(id).value = valor;
     document.getElementById(`val-${id}`).innerText = valor.toFixed(2)
   }
@@ -203,7 +196,7 @@ function selecionarObjeto(indice){
   document.getElementById('val-anim-vel').innerText = obj.animacao.velocidade.toFixed(3);
 }
 
-function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em tempo real
+function configurarInputs(){ 
   const ids = ['pos-x', 'pos-y', 'pos-z', 'rot-x', 'rot-y','rot-z', 'esc-x', 'esc-y', 'esc-z'];
 
   ids.forEach(id => {
@@ -215,9 +208,9 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
       const obj = cena[indiceSelecionado];
       const valor = parseFloat(e.target.value) || 0;
 
-      document.getElementById(`val-${id}`).innerText = valor.toFixed(2); //atualiza o texto verde do lado do nome do slider
+      document.getElementById(`val-${id}`).innerText = valor.toFixed(2); 
 
-      if (id === 'pos-x') obj.posicao[0] = valor; //salva em graus
+      if (id === 'pos-x') obj.posicao[0] = valor; 
       if (id === 'pos-y') obj.posicao[1] = valor;
       if (id === 'pos-z') obj.posicao[2] = valor;
 
@@ -238,7 +231,6 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
       const novoPaiIndice = parseInt(e.target.value);
       const objFilho = cena[indiceSelecionado];
 
-      //impede que um filho seja selecionado como pai do seu pai
       let seguro = true;
       let tempPai;
 
@@ -259,7 +251,7 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
       if (seguro){
         const paiAntigo = objFilho.pai;
         
-        if (paiAntigo !== null){ //se tinha pai, volta pra absoluta do mundo
+        if (paiAntigo !== null){ 
           objFilho.posicao[0] += paiAntigo.posicao[0];
           objFilho.posicao[1] += paiAntigo.posicao[1];
           objFilho.posicao[2] += paiAntigo.posicao[2];
@@ -272,18 +264,17 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
           objFilho.posicao[2] -= novoPai.posicao[2];
         }
 
-        if (objFilho.pai){ //remove filgo do pai antigo
+        if (objFilho.pai){ 
           const indexAntigo = objFilho.pai.filhos.indexOf(objFilho);
           if (indexAntigo > -1) objFilho.pai.filhos.splice(indexAntigo, 1);
         }
 
-        if (novoPaiIndice !== -1){ //associa ao novo pai
+        if (novoPaiIndice !== -1){ 
           const novoPai = cena[novoPaiIndice];
           objFilho.pai = novoPai;
-          novoPai.filhos.push(objFilho); //entra na array de filhos
+          novoPai.filhos.push(objFilho); 
         } else {
             objFilho.pai = null;
-
         }
       } else {
           alert("Ação inválida, Pai do próprio pai.");
@@ -339,8 +330,8 @@ function configurarInputs(){ //fica ouvindo os slider pra alterar o objeto em te
 }
 
 function configurarCamera(){
-  canvas.addEventListener('mousedown', (e) =>{  //quando aperta o botão do mouse
-    if (e.button === 0) { //0 é o botao esquerdo
+  canvas.addEventListener('mousedown', (e) =>{  
+    if (e.button === 0) { 
       mousePressionado = true;
       mousePosicaoAnterior = {x: e.offsetX, y: e.offsetY};
     }
@@ -353,11 +344,10 @@ function configurarCamera(){
 
       const sensibilidade = 0.01;
 
-      anguloCameraY -= deltaX * sensibilidade //movimento horizontal gira o mundo no eixo y
-      anguloCameraX -= deltaY * sensibilidade //movimento vertical gira o mundo no eixo x
+      anguloCameraY -= deltaX * sensibilidade;
+      anguloCameraX -= deltaY * sensibilidade;
       
-      //trava do angulo x pra camera n ficar de cabeça pra baixo
-      const limite = Math.PI / 2 - 0.01 //quase 90 graus
+      const limite = Math.PI / 2 - 0.01;
       anguloCameraX = Math.max(-limite, Math.min(limite, anguloCameraX));
 
       mousePosicaoAnterior = {x: e.offsetX, y: e.offsetY};
@@ -379,7 +369,6 @@ function criarItemMenu(idUnico, nomeOBJ){
 
   if (!divLista) return;
 
-  //criar o cartão do botão
   const divItem = document.createElement('div');
   divItem.style.width = "110px";
   divItem.style.minHeight = "110px"
@@ -394,36 +383,33 @@ function criarItemMenu(idUnico, nomeOBJ){
   divItem.style.boxSizing = "border-box";
   divItem.style.transition = "background-color 0.2s";
 
-  //efeito hover
   divItem.onmouseover = () => divItem.style.backgroundColor = "#4CAF50";
   divItem.onmouseout = () => divItem.style.backgroundColor = "#333"
 
   divItem.onclick = () => {
     cena.push({
       modeloId: idUnico,
-      nomeOBJ: nomeOBJ, //nome pra mostrar na lista
-      pai: null, //órfão
-      filhos: [], //lista que guarda os dependentes dele
-      matrizLocal: null, //vai ser calculada
-      matrizGlobal: null,//vai ser calculada
-      animacao: {ativa: false, eixo: 2, velocidade: 0.001}, //anda no eixo z
+      nomeOBJ: nomeOBJ, 
+      pai: null, 
+      filhos: [], 
+      matrizLocal: null, 
+      matrizGlobal: null,
+      animacao: {ativa: false, eixo: 2, velocidade: 0.002}, 
       cor: [1.0, 1.0, 1.0],
       posicao: [0, 0, 0],
-      rotacao: [0, 0, 0], //em graus, 0 a 360
+      rotacao: [0, 0, 0], 
       escala: [1, 1, 1]
     });
 
     atualizarListaCena();
   };
 
-  //cria a imagem 3D fotografada
   const img = document.createElement('img');
   img.src = IconeBase64;
   img.style.width = "80px";
   img.style.height = "80px";
   img.style.pointerEvents = "none";
   
-  //cria o texto descritivo
   const p = document.createElement('p');
   p.innerText = nomeOBJ;
   p.style.fontSize = "10px";
@@ -432,17 +418,16 @@ function criarItemMenu(idUnico, nomeOBJ){
   divItem.appendChild(img);
   divItem.appendChild(p);
   divLista.appendChild(divItem);
-
-};
+}
 
 function carregarTextura(gl, url){
   const textura = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, textura);
 
-  const corTemp = new Uint8Array([255, 2555, 255, 255]);
+  const corTemp = new Uint8Array([255, 255, 255, 255]);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, corTemp);
 
-  const imagem = new Image(); //carrega a imagem real
+  const imagem = new Image(); 
   imagem.onload = function(){
     gl.bindTexture(gl.TEXTURE_2D, textura);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imagem);
@@ -452,7 +437,6 @@ function carregarTextura(gl, url){
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    console.log("Textura carregada com sucesso!");
   }
 
   imagem.src = url;
@@ -465,8 +449,8 @@ async function carregarModeloOBJ(idUnico ,nomeArquivo, nomeOBJ, configIcone = {x
     const resposta = await fetch(nomeArquivo);
     if (!resposta.ok) throw new Error(`Erro HTTP ${resposta.status}`);
 
-    const textoOBJ = await resposta.text();  //extrai o texto bruto
-    const dadosModelo = parseOBJ(textoOBJ);  //passa pelo parser
+    const textoOBJ = await resposta.text();  
+    const dadosModelo = parseOBJ(textoOBJ);  
     
     const novoVao = gl.createVertexArray();
     gl.bindVertexArray(novoVao);
@@ -474,29 +458,26 @@ async function carregarModeloOBJ(idUnico ,nomeArquivo, nomeOBJ, configIcone = {x
     const a_posicaoLoc = gl.getAttribLocation(programaGlobal, "a_posicao");
     const a_normalLoc = gl.getAttribLocation(programaGlobal, "a_normal");
 
-    //buffer de posições
     const bufferPosicao = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, bufferPosicao);
     gl.bufferData(gl.ARRAY_BUFFER, dadosModelo.posicoes, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(a_posicaoLoc);
     gl.vertexAttribPointer(a_posicaoLoc, 3, gl.FLOAT, false, 0, 0);
 
-    //buffer de normais
     const bufferNormal = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, bufferNormal);
     gl.bufferData(gl.ARRAY_BUFFER, dadosModelo.normais, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(a_normalLoc);
     gl.vertexAttribPointer(a_normalLoc, 3, gl.FLOAT, false, 0, 0);
 
-    //buffer de coordenadas da textura
     const a_texCoordLoc = gl.getAttribLocation(programaGlobal, "a_texCoord");
     const bufferTex = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, bufferTex);
     gl.bufferData(gl.ARRAY_BUFFER, dadosModelo.texCoords, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(a_texCoordLoc);
-    gl.vertexAttribPointer(a_texCoordLoc, 2, gl.FLOAT, false, 0, 0); //2 pq é so U e V
+    gl.vertexAttribPointer(a_texCoordLoc, 2, gl.FLOAT, false, 0, 0); 
 
-    gl.bindVertexArray(null); //trava o vao
+    gl.bindVertexArray(null); 
 
     bibliotecaModelos[idUnico] = {
       vao: novoVao,
@@ -504,9 +485,8 @@ async function carregarModeloOBJ(idUnico ,nomeArquivo, nomeOBJ, configIcone = {x
       configIcone: configIcone
     };
 
-    criarItemMenu(idUnico, nomeOBJ); //gera e adiciona botão no menu da direita
+    criarItemMenu(idUnico, nomeOBJ); 
 
-    console.log(`Modelo '${idUnico}' carregado e salvo na biblioteca`);
   } catch (erro){
     console.error("Falha no pipeline de carregamento", erro);
   }
@@ -514,14 +494,13 @@ async function carregarModeloOBJ(idUnico ,nomeArquivo, nomeOBJ, configIcone = {x
 
 function inicializarWebGL() {
   canvas = document.getElementById("canvas-webgl");
-  gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true }); //preserve permite tirar a foto do canvas
+  gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true }); 
 
   if (!gl) {
     alert("Não suporta WebGl2");
     return;
   }
 
-  //compilar os shaders
   const vertexShader = criarShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
   const fragmentShader = criarShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
 
@@ -532,13 +511,13 @@ function inicializarWebGL() {
 
   texturaGlobal = carregarTextura(gl, 'objetos/citybits_texture.png');
 
-  redimensionarCanvas(); //tamanho inicial
-  window.addEventListener("resize", redimensionarCanvas); //arrumar canvas quando a janela muda de tamanho
+  redimensionarCanvas(); 
+  window.addEventListener("resize", redimensionarCanvas); 
 
-  gl.clearColor(0.15, 0.15, 0.15, 1.0); //cinza escuro
-  gl.enable(gl.DEPTH_TEST); //teste de profundidade, z-buffer
+  gl.clearColor(0.15, 0.15, 0.15, 1.0); 
+  gl.enable(gl.DEPTH_TEST); 
 
-  configurarInputs(); //liga os eventos da caixa de texto html
+  configurarInputs(); 
   configurarCamera();
 
   carregarModeloOBJ('carro', 'objetos/car_hatchback.obj', 'Chassi do Carro', {x: 0.015, y: -0.015, z: -0.4});
@@ -546,13 +525,12 @@ function inicializarWebGL() {
   carregarModeloOBJ('pneu-de' , 'objetos/car_hatchback_wheel_front_left.obj', 'Pneu Dianteiro Esquerdo', {x: 0.019, y: 0.053, z: -0.24});
   carregarModeloOBJ('pneu-dd' , 'objetos/car_hatchback_wheel_front_right.obj', 'Pneu Dianteiro Direito', {x: 0.12, y: 0.01, z: -0.15});
   carregarModeloOBJ('pneu-te' , 'objetos/car_hatchback_wheel_rear_left.obj', 'Pneu Traseiro Esquerdo', {x: -0.12, y: -0.01, z: -0.12});
-  carregarModeloOBJ('pneu-td' , 'objetos/car_hatchback_wheel_rear_right.obj', 'Pneu Traseiro Direito', {x: 0.019, y: 0.053, z: -0.24});
+  carregarModeloOBJ('pneu-td' , 'objetos/car_hatchback_wheel_rear_right.obj', 'Pneu Traseiro Direito', {x: -0.019, y: -0.055, z: -0.045});
 
-  requestAnimationFrame(renderizar); //inicia o loop da aplicação
+  requestAnimationFrame(renderizar); 
 }
 
 function redimensionarCanvas() {
-  //pega o tamanho real que o CSS ta dando
   const displayWidth = canvas.clientWidth;
   const displayHeight = canvas.clientHeight;
 
@@ -560,12 +538,11 @@ function redimensionarCanvas() {
     canvas.width = displayWidth;
     canvas.height = displayHeight;
 
-    gl.viewport(0, 0, canvas.width, canvas.height); //avisa gpu o tamanho novo
+    gl.viewport(0, 0, canvas.width, canvas.height); 
   }
 }
 
 function atualizarGrafoCena(nodo, matrizGlobalPai) {
-  //calcula a matriz local do objeto sozinho
   const matEscala = Matriz.escala(nodo.escala[0], nodo.escala[1], nodo.escala[2]);
   const anguloX = nodo.rotacao[0] * (Math.PI / 180);
   const anguloY = nodo.rotacao[1] * (Math.PI / 180);
@@ -579,36 +556,34 @@ function atualizarGrafoCena(nodo, matrizGlobalPai) {
   let matLocal = Matriz.multiplicar(matRot, matEscala);
   nodo.matrizLocal = Matriz.multiplicar(matPos, matLocal);
 
-  if (matrizGlobalPai) { //calcula a global, se tem pai multiplica, se n tem é a própria
+  if (matrizGlobalPai) { 
     nodo.matrizGlobal = Matriz.multiplicar(matrizGlobalPai, nodo.matrizLocal);
   } else {
     nodo.matrizGlobal = nodo.matrizLocal;
   }
 
-  nodo.filhos.forEach(filho => { //propaga a matriz global pronta pra todos os filhos
+  nodo.filhos.forEach(filho => { 
     atualizarGrafoCena(filho, nodo.matrizGlobal);
   });
 }
 
-//o loop
 function renderizar() {
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); //limpa tela e o buffer de profundidade
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
   gl.useProgram(programaGlobal);
 
-  //configura a projeção (lente da camera)
   const aspect = canvas.width / canvas.height
-  const projecao = Matriz.perspectiva((60 * Math.PI) / 180, aspect, 0.1, 100.0);  //campo de visão de 60 graus, baseado na tela do canvas
-  let visualizacao = Matriz.translacao(0, -2.0, -4.0);   //configura a visualização (posição da camera da cena principal)
-  visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoX(anguloCameraX));  //gira o mundo em 30 graus (cima)
-  visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoY(anguloCameraY)); //gira o mundo em 45 graus (diagonal)
+  const projecao = Matriz.perspectiva((60 * Math.PI) / 180, aspect, 0.1, 100.0);  
+  let visualizacao = Matriz.translacao(0, -2.0, -4.0);   
+  visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoX(anguloCameraX));  
+  visualizacao = Matriz.multiplicar(visualizacao, Matriz.rotacaoY(anguloCameraY)); 
 
-  gl.activeTexture(gl.TEXTURE0); //ativa o slot 0 da textura e envia a imagem
+  gl.activeTexture(gl.TEXTURE0); 
   gl.bindTexture(gl.TEXTURE_2D, texturaGlobal);
   gl.uniform1i(u_texturaLoc, 0);
 
   cena.forEach((obj, index) => {
     if (obj.animacao.ativa){
-      obj.posicao[obj.animacao.eixo] += obj.animacao.velocidade; //soma a velocidade na posição do eixo escolhido
+      obj.posicao[obj.animacao.eixo] += obj.animacao.velocidade; 
 
       if (index === indiceSelecionado){
         const idsPos = ['pos-x', 'pos-y', 'pos-z'];
@@ -619,30 +594,29 @@ function renderizar() {
     }
   });
 
-  cena.forEach(obj => { //atualiza a arvore, busca quem n tem pai e inicia a cascata
+  cena.forEach(obj => { 
     if (obj.pai === null){
       atualizarGrafoCena(obj, null)
     }
   });
 
-  for (let i = 0; i <cena.length; i++){ //percorre os objetos que estão na lista da cena
+  for (let i = 0; i <cena.length; i++){ 
     const instancia = cena[i];
     const modeloBib = bibliotecaModelos[instancia.modeloId];
 
-    if(!modeloBib || !instancia.matrizGlobal) continue; //pula o modelo se ele n foi baixado
+    if(!modeloBib || !instancia.matrizGlobal) continue; 
 
-    let matrizFinal = Matriz.multiplicar(visualizacao, instancia.matrizGlobal); //ja pega a matriz pronta, sem precisar calcular de novo
+    let matrizFinal = Matriz.multiplicar(visualizacao, instancia.matrizGlobal); 
     matrizFinal = Matriz.multiplicar(projecao, matrizFinal);
 
-    gl.uniformMatrix4fv(u_matrizLoc, false, matrizFinal); //envia a matriz pra GPU
-    gl.uniform3fv(u_corLoc, instancia.cor) //envia a cor do obj
+    gl.uniformMatrix4fv(u_matrizLoc, false, matrizFinal); 
+    gl.uniform3fv(u_corLoc, instancia.cor) 
 
-    //pega o endereço de memoria vao na biblioteca e desenha
     gl.bindVertexArray(modeloBib.vao);
     gl.drawArrays(gl.TRIANGLES, 0, modeloBib.contagemVertices);
   }
 
-  requestAnimationFrame(renderizar); //chama a função de novo no próximo frame
+  requestAnimationFrame(renderizar); 
 }
 
 function salvarCena(){
@@ -651,20 +625,18 @@ function salvarCena(){
     return;
   }
 
-  //cria a versao limpa da cena, sem loop
   const cenaSerializada = cena.map(obj => {
-
     let indicePai;
     if (obj.pai !== null) {
       indicePai = cena.indexOf(obj.pai);
     } else {
       indicePai = -1;
     }
-    
+
     return {
       modeloId: obj.modeloId,
       nomeOBJ: obj.nomeOBJ,
-      paiIndex: indicePai, //salva só o numero da posição do pai
+      paiIndex: indicePai, 
       posicao: [...obj.posicao],
       rotacao: [...obj.rotacao],
       escala: [...obj.escala],
@@ -673,9 +645,8 @@ function salvarCena(){
     }
   });
 
-  const jsonStr = JSON.stringify(cenaSerializada, null, 2); //converte para texto json formatado com 2 espaços
+  const jsonStr = JSON.stringify(cenaSerializada, null, 2); 
 
-  //cria o arquivo virtual e faz o download
   const blob = new Blob([jsonStr], {type: "application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -695,12 +666,10 @@ function carregarCena(evento) {
     try {
       const dados = JSON.parse(e.target.result);
 
-      //apaga a cena atual e esconde o menu de edições
       cena.length = 0;
       indiceSelecionado = -1;
       document.getElementById('painel-transformacoes').style.display = 'none';
 
-      //recria os objetos na memoria exatamente como tavam
       dados.forEach(dado =>{
         cena.push({
           modeloId: dado.modeloId,
@@ -717,7 +686,6 @@ function carregarCena(evento) {
         });
       });
 
-      //reconstroi o grafo de cena (liga os filhos aos pais)
       dados.forEach((dado, index) => {
         if (dado.paiIndex !== -1){
           const paiObj = cena[dado.paiIndex];
@@ -728,18 +696,15 @@ function carregarCena(evento) {
         }
       });
 
-    //atualiza a tela
     atualizarListaCena();
-    alert("Cena carregada com sucesso!");
 
     } catch (erro){
       console.error("Erro ao ler JSON", erro);
-      alert("O arquivo selecionado não é um JSON válido.");
     }
-    evento.target.value = ''; //reseta o input pra poder carregar o mesmo arquivo de novo se quiser
+    evento.target.value = ''; 
   };
 
   leitor.readAsText(arquivo);
 }
 
-window.onload = inicializarWebGL; //executa a inicialização quando o html termina de carregar
+window.onload = inicializarWebGL;
